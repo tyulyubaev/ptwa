@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f2f2f7" />
+  <title>WhatsApp Opener</title>
+  <style>
+    :root{
+      --bg: #f2f2f7;         /* iOS grouped background */
+      --card: #ffffff;
+      --text: #111111;
+      --muted: #6b7280;
+      --line: rgba(60,60,67,.18); /* iOS separator */
+      --blue: #007aff;       /* iOS system blue */
+      --shadow: 0 10px 30px rgba(0,0,0,.06);
+      --radius: 16px;
+    }
+
+    *{ box-sizing: border-box; }
+    body{
+      margin:0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", system-ui, Segoe UI, Roboto, Arial, sans-serif;
+    }
+
+    .wrap{
+      max-width: 520px;
+      margin: 0 auto;
+      padding: 22px 16px 28px;
+    }
+
+    .nav{
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding: 8px 0 14px;
+    }
+    .nav h1{
+      margin:0;
+      font-size: 20px;
+      font-weight: 700;
+      letter-spacing: -.2px;
+    }
+
+    .card{
+      background: var(--card);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow:hidden;
+      border: 1px solid rgba(0,0,0,.04);
+    }
+
+    .section{
+      padding: 14px 14px 10px;
+    }
+
+    .label{
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted);
+      margin-bottom: 8px;
+    }
+
+    input{
+      width:100%;
+      padding: 14px 14px;
+      font-size: 17px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      outline: none;
+      transition: box-shadow .12s ease, border-color .12s ease;
+    }
+    input:focus{
+      border-color: rgba(0,122,255,.55);
+      box-shadow: 0 0 0 4px rgba(0,122,255,.12);
+    }
+
+    .divider{
+      height: 1px;
+      background: var(--line);
+      margin: 12px -14px 0;
+    }
+
+    .actions{
+      padding: 12px 14px 14px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+
+    .btn{
+      width:100%;
+      border:0;
+      border-radius: 12px;
+      padding: 14px 14px;
+      font-size: 17px;
+      font-weight: 600;
+      cursor:pointer;
+    }
+
+    .btnPrimary{
+      background: var(--blue);
+      color: #fff;
+    }
+    .btnPrimary:active{
+      filter: brightness(.92);
+    }
+
+    .btnGhost{
+      background: rgba(0,122,255,.10);
+      color: var(--blue);
+    }
+    .btnGhost:active{
+      filter: brightness(.95);
+    }
+
+    .note{
+      margin-top: 14px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.35;
+      padding: 0 4px;
+    }
+
+    .msg{
+      margin-top: 10px;
+      font-size: 13px;
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--line);
+      background: #fff;
+      display:none;
+    }
+    .msg.show{ display:block; }
+    .msg.error{ border-color: rgba(255,59,48,.35); background: rgba(255,59,48,.06); }
+    .msg.ok{ border-color: rgba(52,199,89,.35); background: rgba(52,199,89,.06); }
+
+    .small{
+      font-size: 12px;
+      color: var(--muted);
+      margin-top: 8px;
+    }
+    code{
+      background: rgba(0,0,0,.06);
+      padding: 1px 6px;
+      border-radius: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="nav">
+      <h1>WhatsApp Opener</h1>
+    </div>
+
+    <div class="card">
+      <div class="section">
+        <div class="label">Phone number</div>
+        <input id="phone" inputmode="tel" autocomplete="tel"
+               placeholder="e.g. 07911 123 456 or +44 7911 123456" />
+        <div class="small">UK auto-fix: <code>079…</code> → <code>4479…</code>, <code>0044…</code> → <code>44…</code></div>
+
+        <div id="msg" class="msg" aria-live="polite"></div>
+      </div>
+
+      <div class="divider"></div>
+
+      <div class="actions">
+        <button class="btn btnPrimary" id="openBtn" type="button">Open WhatsApp</button>
+        <button class="btn btnGhost" id="clearBtn" type="button">Clear</button>
+      </div>
+    </div>
+
+    <div class="note">
+      Tip: WhatsApp needs <b>country code + number</b> (8–15 digits).  
+      If you type a UK number starting with 0 (like <code>079…</code>), it will convert automatically.
+    </div>
+  </div>
+
+  <script>
+    const input = document.getElementById("phone");
+    const msg = document.getElementById("msg");
+    const openBtn = document.getElementById("openBtn");
+    const clearBtn = document.getElementById("clearBtn");
+
+    function showMsg(text, type){
+      msg.textContent = text;
+      msg.className = "msg show " + (type || "");
+    }
+    function hideMsg(){
+      msg.textContent = "";
+      msg.className = "msg";
+    }
+
+    function cleanDigits(value) {
+      // remove backspace control char + keep digits only
+      return (value || "")
+        .replace(/\u0008/g, "")
+        .replace(/[^\d]/g, "");
+    }
+
+    function normalizeUK(d) {
+      // 0044... -> 44...
+      if (d.startsWith("0044")) d = "44" + d.slice(4);
+
+      // UK common: 0xxxxxxxxxx (11 digits) -> 44xxxxxxxxxx
+      if (d.length === 11 && d.startsWith("0")) {
+        d = "44" + d.slice(1);
+      }
+      return d;
+    }
+
+    function validate(d) {
+      return d.length >= 8 && d.length <= 15;
+    }
+
+    function normalizeInPlace() {
+      const cleaned = cleanDigits(input.value);
+      const normalized = normalizeUK(cleaned);
+      input.value = normalized;
+      return normalized;
+    }
+
+    // Auto-clean as user types/pastes (no clipboard API needed)
+    input.addEventListener("input", () => {
+      hideMsg();
+      normalizeInPlace();
+    });
+
+    function openWhatsApp() {
+      hideMsg();
+      const number = normalizeInPlace();
+
+      if (!number) {
+        showMsg("Enter a phone number first.", "error");
+        return;
+      }
+      if (!validate(number)) {
+        showMsg("That doesn’t look valid. Use 8–15 digits after cleanup (with country code).", "error");
+        return;
+      }
+
+      window.open(`https://wa.me/${encodeURIComponent(number)}`, "_blank", "noopener,noreferrer");
+      showMsg("Opening WhatsApp…", "ok");
+    }
+
+    openBtn.addEventListener("click", openWhatsApp);
+    input.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") openWhatsApp();
+    });
+
+    clearBtn.addEventListener("click", () => {
+      input.value = "";
+      hideMsg();
+      input.focus();
+    });
+  </script>
+</body>
+</html>
